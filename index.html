@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GK FIRST EXAM</title>
+  
+  <!-- Firebase SDK (Google-এর ফ্রি ডাটাবেজ) -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+
+  <style>
+    :root {
+      --bg-color: #f1f5f9;
+      --card-bg: #ffffff;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --border-color: #cbd5e1;
+      --primary-color: #4f46e5;
+      --primary-hover: #4338ca;
+      --correct-bg: #dcfce7;
+      --correct-border: #22c55e;
+      --correct-text: #15803d;
+      --wrong-bg: #fee2e2;
+      --wrong-border: #ef4444;
+      --wrong-text: #b91c1c;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
+    body { background-color: var(--bg-color); color: var(--text-main); display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
+    .quiz-card { background: var(--card-bg); width: 100%; max-width: 650px; border-radius: 16px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1); padding: 32px; }
+    .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 2px solid var(--border-color); }
+    .progress-text { font-size: 14px; font-weight: 600; color: var(--primary-color); background: rgba(79, 70, 229, 0.1); padding: 6px 14px; border-radius: 20px; }
+    .progress-bar-container { width: 100%; height: 8px; background-color: var(--border-color); border-radius: 10px; margin-bottom: 24px; overflow: hidden; }
+    .progress-bar { height: 100%; background-color: var(--primary-color); width: 0%; transition: width 0.3s ease; }
+    .question-title { font-size: 20px; font-weight: 700; line-height: 1.4; margin-bottom: 20px; }
+    .options-grid { display: flex; flex-direction: column; gap: 12px; }
+    .option-btn { width: 100%; padding: 14px 18px; font-size: 16px; text-align: left; background: transparent; color: var(--text-main); border: 2px solid var(--border-color); border-radius: 10px; cursor: pointer; transition: all 0.2s; }
+    .option-btn:hover:not(:disabled) { border-color: var(--primary-color); background-color: rgba(79, 70, 229, 0.05); }
+    .option-btn.correct { background-color: var(--correct-bg) !important; border-color: var(--correct-border) !important; color: var(--correct-text) !important; font-weight: 600; }
+    .option-btn.wrong { background-color: var(--wrong-bg) !important; border-color: var(--wrong-border) !important; color: var(--wrong-text) !important; font-weight: 600; }
+    .footer-actions { margin-top: 28px; display: flex; justify-content: flex-end; }
+    .next-btn { background-color: var(--primary-color); color: white; border: none; padding: 12px 28px; font-size: 16px; font-weight: 600; border-radius: 8px; cursor: pointer; display: none; }
+    
+    /* নাম ইনপুট ফর্ম */
+    .user-info-screen, .result-screen { text-align: center; display: none; }
+    .user-info-screen input { width: 100%; padding: 12px; font-size: 16px; margin: 15px 0; border: 2px solid var(--border-color); border-radius: 8px; }
+    .start-btn { background-color: var(--primary-color); color: white; border: none; padding: 12px 30px; font-size: 16px; border-radius: 8px; cursor: pointer; }
+    
+    .score-circle { width: 150px; height: 150px; border-radius: 50%; background: rgba(79, 70, 229, 0.1); color: var(--primary-color); display: flex; flex-direction: column; justify-content: center; align-items: center; margin: 20px auto; font-size: 36px; font-weight: 800; }
+    .score-details { display: flex; justify-content: space-around; margin: 20px 0; background: #f8fafc; padding: 16px; border-radius: 10px; border: 1px solid var(--border-color); }
+  </style>
+</head>
+<body>
+
+  <div class="quiz-card">
+    
+    <!-- ১. পরীক্ষার্থীর নাম দেওয়ার স্ক্রিন -->
+    <div id="user-info-view" class="user-info-screen" style="display: block;">
+      <h2>Let's start now </h2>
+      <p style="color: var(--text-muted); margin-top: 5px;">Enter your name</p>
+      <input type="text" id="user-name" placeholder="Enter your name...">
+      <button class="start-btn" onclick="startQuiz()">Start now</button>
+    </div>
+
+    <!-- ২. মূল কুইজ স্ক্রিন -->
+    <div id="quiz-view" style="display: none;">
+      <div class="top-bar">
+        <h2 id="display-name" style="font-size: 16px;"></h2>
+        <span class="progress-text" id="progress-text">Question 1/40</span>
+      </div>
+
+      <div class="progress-bar-container">
+        <div class="progress-bar" id="progress-bar"></div>
+      </div>
+
+      <div class="question-title" id="question-title">QUESTION LOADING...</div>
+
+      <div class="options-grid" id="options-grid"></div>
+
+      <div class="footer-actions">
+        <button class="next-btn" id="next-btn" onclick="handleNextQuestion()">NEXT QUESTION ➔</button>
+      </div>
+    </div>
+
+    <!-- ৩. রেজাল্ট স্ক্রিন -->
+    <div class="result-screen" id="result-view">
+      <h2>Exam finish!</h2>
+      <p style="color: var(--text-muted)">tumar folafol joma hoise pakhi</p>
+      
+      <div class="score-circle">
+        <div id="final-score">০.০০</div>
+        <span style="font-size: 14px; color: var(--text-muted);">  Total score / 40</span>
+      </div>
+
+      <div class="score-details">
+        <div><strong style="color: var(--correct-border); font-size: 20px;" id="correct-count">০</strong><br><small>সঠিক (+1.00)</small></div>
+        <div><strong style="color: var(--wrong-border); font-size: 20px;" id="wrong-count">০</strong><br><small>ভুল (-0.25)</small></div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // ⚙️ আপনার ফায়ারবেজ কনফিগারেশন এখানে বসাতে হবে (নিচে নিয়ম দেওয়া আছে)
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_AUTH_DOMAIN",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_STORAGE_BUCKET",
+      messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    // ৬০টি প্রশ্ন এখানে রাখবেন (ডেমো ৩টি দেওয়া আছে)
+    const questionsDatabase = [
+    { question: "1. ২০২৬ সালে বাংলাদেশের ত্রয়োদশ জাতীয় সংসদ নির্বাচন কবে অনুষ্ঠিত হয়?", options: [" ৭ জানুয়ারি ২০২৬", "১২ ফেব্রুয়ারি ২০২৬","২১ ফেব্রুয়ারি ২০২৬", "২৬ মার্চ ২০২৬"], correct: 2},
+    { question: "2. ২০২৬ সালের নির্বাচনে বিএনপির চেয়ারম্যান তারেক রহমান কোন দুটি আসনে নির্বাচিত হন?", options: [" ঢাকা-১৭ ও বগুড়া-৬", " ঢাকা-১০ ও বগুড়া-৭", "গোপালগঞ্জ-৩ ও ঢাকা-১৭", "চট্টগ্রাম-৯ ও বগুড়া-৬"], correct: 1 },
+    { question: "3. ২০২৬ সালের জাতীয় সংসদ নির্বাচনের সঙ্গে বাংলাদেশে আর কোন গুরুত্বপূর্ণ গণতান্ত্রিক প্রক্রিয়া অনুষ্ঠিত হয়?", options: [" রাষ্ট্রপতি নির্বাচন", "গণভোট", "সিটি করপোরেশন নির্বাচন", "উপজেলা পরিষদ নির্বাচন"], correct: 2 },
+    { question: "4.  বাংলাদেশের কেন্দ্রীয় ব্যাংকের নাম কী?", options: ["সোনালী ব্যাংক", "বাংলাদেশ ব্যাংক", "জনতা ব্যাংক", "বাংলাদেশ কৃষি ব্যাংক"], correct: 2 },
+    { question: "5. বাংলাদেশের তৈরি পোশাকশিল্পের আন্তর্জাতিক বাণিজ্যের সঙ্গে সবচেয়ে বেশি সম্পর্কিত কোনটি?", options: [" RMG শিল্প", "মহাকাশ গবেষণা", "পারমাণবিক বিদ্যুৎ উৎপাদন", "সামুদ্রিক পর্যটন"], correct: 1 },
+    { question: "6. বাংলাদেশের স্বল্পোন্নত দেশ (LDC) থেকে উত্তরণের বিষয়টি প্রধানত কোন ক্ষেত্রের সঙ্গে সম্পর্কিত?", options: ["অর্থনৈতিক ও উন্নয়নগত অগ্রগতি", "অলিম্পিক আয়োজন", "সামরিক জোট গঠন", "নতুন মুদ্রা চালু"], correct: 1 },
+    { question: "7. ২০২৬ সালের নোবেল শান্তি পুরস্কার কে লাভ করেন?", options: ["মালালা ইউসুফজাই", "নাভি পিল্লাই", "গ্রেটা থুনবার্গ", " মার্গারেট অ্যাটউড"], correct: 2 },
+    { question: "8.  ২০২৬ সালের পদার্থবিজ্ঞানে নোবেল পুরস্কার কে পান?", options: ["ফ্রান্সিস হ্যালজেন", "হেনরি কাগান", "মাইকেল উডফোর্ড", "অ্যান কারসন"], correct: 1 },
+    { question: "9.  ২০২৬ সালের রসায়নে নোবেল পুরস্কার কারা লাভ করেন?", options: ["ফ্রান্সিস হ্যালজেন ও নাভি পিল্লাই", "হেনরি কাগান ও কেনসো সোয়াই", "রবার্ট হল ও মাইকেল উডফোর্ড", " অ্যান কারসন ও নাভি পিল্লাই"], correct: 2 },
+    { question: "10. ২০২৬ সালের FIFA বিশ্বকাপের আয়োজক দেশ কোন তিনটি?", options: ["স্পেন, পর্তুগাল ও মরক্কো", "যুক্তরাষ্ট্র, কানাডা ও মেক্সিকো", "ব্রাজিল, আর্জেন্টিনা ও চিলি", "জার্মানি, ফ্রান্স ও ইতালি"], correct: 2 },
+    { question: "11. ২০২৬ সালের FIFA বিশ্বকাপে মোট কতটি দল অংশগ্রহণ করে?", options: ["৩২টি", "৩৬টি", " ৪০টি", "৪৮টি"], correct: 4 },
+    { question: "12. ২০২৬ সালের শীতকালীন অলিম্পিক কোথায় অনুষ্ঠিত হয়?", options: ["টোকিও, জাপান", "মিলানো-কোর্তিনা, ইতালি", "প্যারিস, ফ্রান্স", "বেইজিং, চীন"], correct: 2 },
+    { question: "13.  বাংলাদেশের জাতীয় সংসদ নির্বাচনের দায়িত্বপ্রাপ্ত সাংবিধানিক প্রতিষ্ঠান কোনটি?", options: ["বাংলাদেশ সরকারি কর্ম কমিশন", "বাংলাদেশ ব্যাংক", "বাংলাদেশ নির্বাচন কমিশন", "জাতীয় মানবাধিকার কমিশন"], correct: 3 },
+    { question: "14. ২০২৬ সালের সাহিত্যে নোবেল পুরস্কার কে লাভ করেন?", options: ["অ্যান কারসন", "নাভি পিল্লাই", " মালালা ইউসুফজাই", "মার্গারেট অ্যাটউড"], correct: 1 },
+    { question: "15. ২০২৬ সালের অর্থনীতিতে নোবেল স্মারক পুরস্কার কারা লাভ করেন?", options: ["জোয়েল মোকির ও পিটার হাউইট", "রবার্ট ই. হল ও মাইকেল উডফোর্ড", "ফ্রান্সিস হ্যালজেন ও হেনরি কাগান", "কেনসো সোয়াই ও অ্যান কারসন"], correct: 2 },
+    { question: "16. ২০২৬ সালের FIFA বিশ্বকাপের চ্যাম্পিয়ন কোন দেশ?", options: ["আর্জেন্টিনা", "ফ্রান্স", "স্পেন", "ব্রাজিল"], correct: 2 },
+    { question: "17. বঙ্গভঙ্গ কার্যকর হয় কোন তারিখে?", options: [" ১৯০৫ সালের ১ জানুয়ারি", "১৯০৫ সালের ১৬ অক্টোবর", "১৯০৬ সালের ৩০ ডিসেম্বর", "১৯১১ সালের ১২ ডিসেম্বর"], correct: 1 },
+    { question: "18. সর্বভারতীয় মুসলিম লীগ প্রতিষ্ঠিত হয় কোথায়?", options: ["কলকাতা", "ঢাকা", " লাহোর", "করাচি"], correct: 2 },
+    { question: "19. বাংলাদেশের জাতীয় স্মৃতিসৌধ কোথায় অবস্থিত?", options: ["রমনা, ঢাকা", "সাভার", "মেহেরপুর", "চট্টগ্রাম"], correct: 2 },
+    { question: "20. বাংলাদেশের সংবিধান কার্যকর হয় কবে?", options: ["২৬ মার্চ ১৯৭১", "১৬ ডিসেম্বর ১৯৭১", "৪ নভেম্বর ১৯৭২", "১৬ ডিসেম্বর ১৯৭২"], correct: 4 },
+    { question: "21. জাতিসংঘ (UN) প্রতিষ্ঠিত হয় কত সালে?", options: ["১৯১৯", "১৯৪৫", "১৯৪৮", "১৯৫২"], correct: 2 },
+    { question: "22. আন্তর্জাতিক বিচার আদালত (ICJ) কোথায় অবস্থিত?", options: [" রোম", "দ্য হেগ", " নিউইয়র্ক","ভিয়েনা"], correct: 2 },
+    { question: "23. বিশ্ব স্বাস্থ্য সংস্থার (WHO) সদর দপ্তর কোথায়?", options: ["জেনেভা", "ওয়াশিংটন ডিসি", " নিউইয়র্ক", "ব্রাসেলস"], correct: 1 },
+    { question: "24. অলিম্পিকের প্রতীকে কয়টি বলয় রয়েছে?", options: ["৪টি", "৫টি", "৬টি", "৭টি"], correct: 2 },
+    { question: "25. ভাষা আন্দোলনের সময় পাকিস্তানের গণপরিষদে বাংলাকে রাষ্ট্রভাষা করার দাবি উত্থাপন করেন কে?", options: ["ধীরেন্দ্রনাথ দত্ত", "আবুল কাসেম", " শামসুল হক", "মওলানা আবদুল হামিদ খান ভাসানী"], correct: 1 },
+    { question: "26. ১৯৬৯ সালের গণ-অভ্যুত্থানের সময় আগরতলা মামলার আসামিদের মুক্তি দেওয়া হয় কোন তারিখে?", options: ["২০ জানুয়ারি ১৯৬৯", "২২ ফেব্রুয়ারি ১৯৬৯", "২৩ ফেব্রুয়ারি ১৯৬৯", "৭ মার্চ ১৯৬৯"], correct: 2 },
+    { question: "27. বাংলাদেশের মুক্তিযুদ্ধের সময় ১০ এপ্রিল ১৯৭১-এর স্বাধীনতার ঘোষণাপত্র কার্যকর ধরা হয় কোন তারিখ থেকে", options: ["৭ মার্চ ১৯৭১", "২৫ মার্চ ১৯৭১", "২৬ মার্চ ১৯৭১", "১৭ এপ্রিল ১৯৭১"], correct: 3 },
+    { question: "28. ১৬৪৮ সালের ওয়েস্টফেলিয়ার শান্তিচুক্তি প্রধানত কোন ধারণার বিকাশের সঙ্গে সম্পর্কিত?", options: [" উপনিবেশবাদের অবসান", " আধুনিক রাষ্ট্রের সার্বভৌমত্ব", "জাতিসংঘের প্রতিষ্ঠা", "ইউরোপীয় ইউনিয়নের প্রতিষ্ঠা"], correct: 2 },
+    { question: "29. লীগ অব নেশনস প্রতিষ্ঠার পেছনে কোন মার্কিন প্রেসিডেন্টের ভূমিকা বিশেষভাবে গুরুত্বপূর্ণ ছিল?", options: [" আব্রাহাম লিংকন", "উড্রো উইলসন", "ফ্রাঙ্কলিন ডি. রুজভেল্ট", " হ্যারি ট্রুম্যান"], correct: 2 },
+    { question: "30. ব্রেটন উডস সম্মেলন অনুষ্ঠিত হয় কোন সালে?", options: ["১৯১৯", "১৯৩৯", "১৯৪৪", "১৯৪৮"], correct: 3 },
+    { question: "31. ব্রেটন উডস সম্মেলন কোথায় অনুষ্ঠিত হয়েছিল?, options: [",যুক্তরাষ্ট্র", " ব্রেটন উডস, নিউ হ্যাম্পশায়ার, যুক্তরাষ্ট্র", "জেনেভা, সুইজারল্যান্ড", "লন্ডন, যুক্তরাজ্য"], correct: 2 },
+    { question: "32.  কোন চুক্তির মাধ্যমে ইউরোপীয় অর্থনৈতিক সম্প্রদায় (EEC) প্রতিষ্ঠিত হয়?", options: ["মাষ্ট্রিখ্ট চুক্তি", "রোম চুক্তি", "ভার্সাই চুক্তি", "লিসবন চুক্তি"], correct: 2 },
+    { question: "33. জাতিসংঘের বাণিজ্য ও উন্নয়নবিষয়ক সংস্থার সংক্ষিপ্ত নাম কী?", options: [" UNICEF", "UNCTAD", "UNESCO", "UNHCR"], correct: 2 },
+    { question: "34. আন্তর্জাতিক সম্পর্কের ক্ষেত্রে ‘ভেটো ক্ষমতা’ কোন প্রতিষ্ঠানের স্থায়ী সদস্যদের রয়েছে?", options: ["আন্তর্জাতিক বিচার আদালত", "জাতিসংঘ নিরাপত্তা পরিষদ", "UNESCO", "বিশ্ব স্বাস্থ্য সংস্থা"], correct: 2 },
+    { question: "35. ১৯৫৪ সালের যুক্তফ্রন্ট নির্বাচনে পূর্ব বাংলার প্রাদেশিক পরিষদের মোট কতটি আসনের মধ্যে যুক্তফ্রন্ট কতটি আসন লাভ করে?", options: ["২৩৭টির মধ্যে ২২৩টি", "৩০০টির মধ্যে ২৬৭টি", "২৩৭টির মধ্যে ১৯০টি", "৩০০টির মধ্যে ২২৩টি"], correct: 1 },
+    { question: "36. জাতিসংঘের কোন অঙ্গ আন্তর্জাতিক শান্তি ও নিরাপত্তা রক্ষার জন্য প্রধান দায়িত্বপ্রাপ্ত?", options: ["সাধারণ পরিষদ", "নিরাপত্তা পরিষদ", "অর্থনৈতিক ও সামাজিক পরিষদ", "সচিবালয়"], correct: 2 },
+    { question: "37.  ১৯১৯ সালের ভার্সাই চুক্তি প্রধানত কোন যুদ্ধের সমাপ্তির সঙ্গে সম্পর্কিত?", options: ["ক্রিমিয়ার যুদ্ধ", "প্রথম বিশ্বযুদ্ধ", "দ্বিতীয় বিশ্বযুদ্ধ", "ফ্রাঙ্কো-প্রুশীয় যুদ্ধ"], correct: 1 },
+    { question: "38. বাংলাদেশের সংবিধানের কোন অনুচ্ছেদে রাষ্ট্রভাষা বাংলার কথা বলা হয়েছে?", options: ["অনুচ্ছেদ ২", "অনুচ্ছেদ ৩", "অনুচ্ছেদ ৪", "অনুচ্ছেদ ৭"], correct: 2 },
+    { question: "39. আসিয়ান (ASEAN) প্রতিষ্ঠার মূল দলিল কোনটি?", options: ["ব্যাংকক ঘোষণা", "জাকার্তা সনদ", "ম্যানিলা চুক্তি", "বালি ঘোষণা"], correct: 1 },
+    { question: "40. আন্তর্জাতিক বিচার আদালতের (ICJ) বিচারকদের মেয়াদ কত বছর?", options: ["৪ বছর", "৬ বছর", " ৯ বছর", "১২ বছর"], correct: 3 },
+    
+    ];
+
+    let userName = "";
+    let currentQuestionIndex = 0;
+    let totalScore = 0;
+    let correctCount = 0;
+    let wrongCount = 0;
+    let userWrongQuestions = []; // ইউজারের ভুল করা প্রশ্নগুলোর তালিকা
+
+    function startQuiz() {
+      const nameInput = document.getElementById('user-name').value.trim();
+      if(nameInput === "") {
+        alert("Please enter your name!");
+        return;
+      }
+      userName = nameInput;
+      document.getElementById('display-name').innerText = `শিক্ষার্থী: ${userName}`;
+      document.getElementById('user-info-view').style.display = 'none';
+      document.getElementById('quiz-view').style.display = 'block';
+      loadQuestion();
+    }
+
+    function loadQuestion() {
+      const currentData = questionsDatabase[currentQuestionIndex];
+      document.getElementById('next-btn').style.display = 'none';
+      const optionsGrid = document.getElementById('options-grid');
+      optionsGrid.innerHTML = '';
+
+      document.getElementById('progress-text').innerText = `প্রশ্ন ${currentQuestionIndex + 1}/${questionsDatabase.length}`;
+      document.getElementById('progress-bar').style.width = `${((currentQuestionIndex + 1) / questionsDatabase.length) * 100}%`;
+      document.getElementById('question-title').innerText = currentData.question;
+
+      currentData.options.forEach((option, index) => {
+        const button = document.createElement('button');
+        button.className = 'option-btn';
+        button.innerText = option;
+        button.onclick = () => selectOption(index, button);
+        optionsGrid.appendChild(button);
+      });
+    }
+
+    function selectOption(selectedIndex, selectedBtn) {
+      const currentData = questionsDatabase[currentQuestionIndex];
+      const allButtons = document.querySelectorAll('.option-btn');
+      allButtons.forEach(btn => btn.disabled = true);
+
+      if (selectedIndex === currentData.correct) {
+        selectedBtn.classList.add('correct');
+        totalScore += 1;
+        correctCount++;
+      } else {
+        selectedBtn.classList.add('wrong');
+        allButtons[currentData.correct].classList.add('correct');
+        totalScore -= 0.25;
+        wrongCount++;
+        
+        // ইউজারের ভুল করা প্রশ্নটি সংরক্ষণ করা
+        userWrongQuestions.push({
+          question: currentData.question,
+          selectedAnswer: currentData.options[selectedIndex],
+          correctAnswer: currentData.options[currentData.correct]
+        });
+      }
+
+      document.getElementById('next-btn').style.display = 'block';
+    }
+
+    function handleNextQuestion() {
+      currentQuestionIndex++;
+      if (currentQuestionIndex < questionsDatabase.length) {
+        loadQuestion();
+      } else {
+        submitResultsToDatabase();
+      }
+    }
+
+    // ফায়ারবেজ ডাটাবেজে ইউজারের ফলাফল ও ভুল প্রশ্নগুলো সেভ করা
+    function submitResultsToDatabase() {
+      document.getElementById('quiz-view').style.display = 'none';
+      document.getElementById('result-view').style.display = 'block';
+
+      document.getElementById('final-score').innerText = totalScore.toFixed(2);
+      document.getElementById('correct-count').innerText = correctCount;
+      document.getElementById('wrong-count').innerText = wrongCount;
+
+      // ডাটাবেজে পাঠানো
+      db.collection("quiz_results").add({
+        name: userName,
+        score: totalScore.toFixed(2),
+        correct: correctCount,
+        wrong: wrongCount,
+        wrongQuestions: userWrongQuestions, // ইউজার কোনগুলো ভুল করেছে তার লিস্ট
+        time: new Date()
+      })
+      .then(() => {
+        console.log("ফলাফল সফলভাবে জমা হয়েছে!");
+      })
+      .catch((error) => {
+        console.error("ডাটা সেভ করতে সমস্যা হয়েছে: ", error);
+      });
+    }
+  </script>
+</body>
+</html>
